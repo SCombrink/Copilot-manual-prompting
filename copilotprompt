@@ -1,0 +1,117 @@
+import time
+import re
+import os
+from playwright.sync_api import sync_playwright
+
+def get_copilot_response(prompt_text):
+    if not prompt_text:
+        return "Error: Empty prompt provided."
+
+    with sync_playwright() as p:
+        user_data_dir = "./playwright_profile" 
+        
+        # DEBUG MODE: Set to True to make it run invisibly in the background
+        browser = p.chromium.launch_persistent_context(
+            user_data_dir=user_data_dir,
+            channel="msedge", 
+            headless=True, 
+            args=['--start-maximized'],
+            no_viewport=True
+        )
+        
+        page = browser.pages[0]
+        try:
+            page.goto("https://m365.cloud.microsoft/chat/")
+            
+            # Find the input box and click it
+            input_selector = '#m365-chat-editor-target-element, textarea, [contenteditable="true"]'
+            page.wait_for_selector(input_selector, timeout=30000)
+            page.locator(input_selector).first.click()
+            
+            # --- THE SPEED FIX: Instant Insertion ---
+            # This bypasses character-by-character typing and pastes the text instantly.
+            page.keyboard.insert_text(prompt_text)
+            
+            # Give the React UI 1 full second to register the pasted text block
+            page.wait_for_timeout(1000) 
+            
+            # Try the standard Enter key
+            page.keyboard.press("Enter")
+            page.wait_for_timeout(500)
+            
+            # The Smart Wait for the Button to Turn Blue
+            page.evaluate("""() => {
+                return new Promise((resolve) => {
+                    let attempts = 0;
+                    const checkButton = setInterval(() => {
+                        attempts++;
+                        
+                        // Grab the physical send button
+                        const btn = document.querySelector('button[title="Submit message"], button[aria-label="Submit message"], button[aria-label="Send"], button[data-testid="submit-button"]');
+                        
+                        // Check if it exists AND is no longer disabled (turned blue/active)
+                        if (btn && !btn.disabled && btn.getAttribute('aria-disabled') !== 'true') {
+                            clearInterval(checkButton);
+                            btn.click(); 
+                            resolve(true);
+                        }
+                        
+                        if (attempts > 75) {
+                            clearInterval(checkButton);
+                            resolve(false);
+                        }
+                    }, 200);
+                });
+            }""")
+            
+            page.wait_for_timeout(500)
+
+            # Wait for Redirect to Conversation
+            try:
+                page.wait_for_url(re.compile(r".*/conversation/.*"), timeout=15000)
+            except:
+                pass
+
+            # Target the specific output div
+            target_selector = '[data-testid="markdown-reply"], .fai-ChatMessage__content, [role="presentation"] div[dir="auto"]'
+            
+            last_length = 0
+            stable_count = 0
+            final_text = ""
+            
+            for _ in range(60): 
+                current_text = page.evaluate(f"""() => {{
+                    const msgs = document.querySelectorAll('{target_selector}');
+                    if (msgs.length > 0) {{
+                        return msgs[msgs.length - 1].innerText;
+                    }}
+                    return "";
+                }}""")
+                
+                if current_text and len(current_text.strip()) > 0:
+                    if len(current_text) == last_length:
+                        stable_count += 1
+                    else:
+                        stable_count = 0 
+                    
+                    last_length = len(current_text)
+                    final_text = current_text
+                
+                if stable_count >= 3 and len(final_text) > 2:
+                    break
+                
+                time.sleep(1)
+            
+            if final_text:
+                browser.close()
+                return final_text.strip()
+            else:
+                html_content = page.content()
+                with open("debug_page.html", "w", encoding="utf-8") as f:
+                    f.write(html_content)
+                browser.close()
+                return "Error: Could not extract text. Check 'debug_page.html'."
+            
+        except Exception as e:
+            browser.close()
+            return f"Automation failed: {str(e)[:100]}..."
