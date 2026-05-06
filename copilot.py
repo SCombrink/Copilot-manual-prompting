@@ -60,20 +60,23 @@ def get_copilot_response(prompt_text, show_window=False):
             last_length = 0
             stable_count = 0
             
-            # Wait for the response to stabilize
-            for _ in range(60): 
+            # Increased range to 180 (allowing up to 3 minutes total wait time)
+            for _ in range(180): 
                 current_text = page.evaluate(f"() => {{ const msgs = document.querySelectorAll('{target_selector}'); return msgs.length > 0 ? msgs[msgs.length - 1].innerText : ''; }}")
+                
                 if current_text.strip():
                     if len(current_text) == last_length: 
                         stable_count += 1
                     else: 
                         stable_count = 0 
+                    
                     last_length = len(current_text)
                     final_text = current_text
                 
-                # If the text has stayed exactly the same length for 3 seconds, it is done generating
-                if stable_count >= 3: 
+                # Increased stability requirement: text must not change for 10 full seconds
+                if stable_count >= 10: 
                     break
+                    
                 time.sleep(1)
             
             browser.close()
