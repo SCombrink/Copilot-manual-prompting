@@ -26,27 +26,27 @@ def get_copilot_response(prompt_text, show_window=False):
             # Dismiss 'Try the app' popover if it appears
             try:
                 popover_btn = "button.fai-next, .fui-TeachingPopover button"
-                if page.is_visible(popover_btn, timeout=5000):
+                if page.is_visible(popover_btn, timeout=2500):
                     page.click(popover_btn)
             except:
                 pass
 
             # Find the input box and click it
             input_selector = '#m365-chat-editor-target-element, textarea, [contenteditable="true"]'
-            page.wait_for_selector(input_selector, timeout=30000)
+            page.wait_for_selector(input_selector, timeout=15000)
             
             # Use .last to ensure we hit the main chat box, not a header search bar
             chat_box = page.locator(input_selector).last
             chat_box.click()
             
             # Increased pause to let the server and React UI fully initialize
-            page.wait_for_timeout(3000) 
+            page.wait_for_timeout(1500) 
             
             # Mimic human typing so the React UI registers the input
-            # delay=5 types it fast, but triggers required keyboard events
-            page.keyboard.type(prompt_text, delay=5)
+            # delay=1 types it fast, but triggers required keyboard events
+            page.keyboard.type(prompt_text, delay=1)
             
-            page.wait_for_timeout(1000) 
+            page.wait_for_timeout(500) 
             page.keyboard.press("Enter")
             
             # Smart send button click as a fallback if Enter does not register
@@ -73,8 +73,8 @@ def get_copilot_response(prompt_text, show_window=False):
                     last_length = len(current_text)
                     final_text = current_text
                 
-                # Increased stability requirement: text must not change for 10 full seconds
-                if stable_count >= 10: 
+                # Increased stability requirement: text must not change for 3 full seconds
+                if stable_count >= 3: 
                     break
                     
                 time.sleep(1)
