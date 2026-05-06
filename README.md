@@ -37,3 +37,5 @@ Navigate to the following URL in your browser:
 *   This setup enables manual Copilot interaction through a browser-based UI.
 *   Useful in environments where API access is restricted or unavailable.
 *   Ensure all files are correctly placed as per the project structure.
+
+Use client.py as your template to start writing your code. 
